@@ -4,12 +4,13 @@ import tensorflow as tf
 from tqdm import tqdm
 from preprocessing import DatasetLoader
 from argparse import ArgumentParser
-# from constant import evaluation, evaluation_with_attention
-# from metric import MaskedSoftmaxCELoss
+from evaluation import evaluation, evaluation_with_attention
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from Encoder_Attention_decoder import Encode, Attention, Decoder
+from metric import Bleu_score
 from sklearn.model_selection import train_test_split
 import numpy as np
+from argparse import ArgumentParser
 
 
 url = 'data/NomNaNMT.csv'
@@ -29,16 +30,20 @@ class Seq2Seq:
   def __init__(self,
                embedding_size=64,
                hidden_units = 256,
-               learning_rate=0.001,
+               learning_rate=0.005,
                test_split_size=0.1,
                epochs = 10,
-               batch_size = 128
+               batch_size = 128,
+               use_bleu=False,
+               debug=False
                ):
     self.embedding_size = embedding_size
     self.hidden_units = hidden_units
     self.test_split_size = test_split_size
     self.BATCH_SIZE = batch_size
     self.EPOCHS = epochs
+    self.debug = debug
+    self.use_bleu = use_bleu
 
     # save model
     home = os.getcwd()
@@ -67,27 +72,31 @@ class Seq2Seq:
                           embedding_size,
                           hidden_units)
     # Initialize translation
-    self.checkpoint_prefix = os.path.join(self.path_save, "ckpt")
+    self.checkpoint_prefix = os.path.join(self.path_save, "Seq2Seq_hanmon_to_VN")
+
     self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
                                           encoder=self.encoder,
                                           decoder=self.decoder)
-  def train_step(self, x, y):
-    with tf.GradientTape() as tape:
-      # Teacher forcing
-      sos = tf.reshape(tf.constant([self.tar_builder.word_index['<sos>']] * self.BATCH_SIZE),
-                        shape=(-1, 1))
-      dec_input = tf.concat([sos, y[:, :-1]], 1)
-      # Encoder
-      _, last_state = self.encoder(x)
-      # Decoder
-      outs, last_state = self.decoder(dec_input, last_state)
-      # Loss
-      loss = MaskedSoftmaxCELoss(y, outs)
+    # Initialize Bleu function
+    self.bleu = Bleu_score()
 
-    train_vars = self.encoder.trainable_variables + self.decoder.trainable_variables
-    grads = tape.gradient(loss, train_vars)
-    self.optimizer.apply_gradients(zip(grads, train_vars))
-    return loss
+  # def train_step(self, x, y):
+  #   with tf.GradientTape() as tape:
+  #     # Teacher forcing
+  #     sos = tf.reshape(tf.constant([self.tar_builder.word_index['<sos>']] * self.BATCH_SIZE),
+  #                       shape=(-1, 1))
+  #     dec_input = tf.concat([sos, y[:, :-1]], 1)
+  #     # Encoder
+  #     _, last_state = self.encoder(x)
+  #     # Decoder
+  #     outs, last_state = self.decoder(dec_input, last_state)
+  #     # Loss
+  #     loss = MaskedSoftmaxCELoss(y, outs)
+
+  #   train_vars = self.encoder.trainable_variables + self.decoder.trainable_variables
+  #   grads = tape.gradient(loss, train_vars)
+  #   self.optimizer.apply_gradients(zip(grads, train_vars))
+  #   return loss
 
   def train_step_with_attention(self, x, y):
     loss = 0
@@ -124,9 +133,53 @@ class Seq2Seq:
         print( "( {},{} )".format(epoch,self.EPOCHS))
         for _, (x, y) in tqdm(enumerate(train_ds.batch(self.BATCH_SIZE).take(N_BATCH)), total=N_BATCH):
           total_loss += self.train_step_with_attention(x, y)
+      
+        if self.use_bleu:
+          print("\n=================================================================")
+          
+          bleu_score = evaluation_with_attention(encoder=self.encoder,
+                                                  decoder=self.decoder,
+                                                  test_ds=val_ds,
+                                                  val_function=self.bleu,
+                                                  inp_builder=self.inp_builder,
+                                                  tar_builder=self.tar_builder,
+                                                  test_split_size=self.test_split_size,
+                                                  debug=self.debug)
+          print("-----------------------------------------------------------------")
+          print(f'Epoch {epoch + 1}/{self.EPOCHS} -- Loss: {total_loss} -- Bleu_score: {bleu_score}')
+          if bleu_score > tmp:
+              self.checkpoint.save(file_prefix=self.checkpoint_prefix)
+              print("[INFO] Saved model in '{}' direction!".format(self.path_save))
+              tmp = bleu_score
+          print("=================================================================\n")
+        else:
+          print("=================================================================")
+          print(f'Epoch {epoch + 1}/{self.EPOCHS} -- Loss: {total_loss}')
+          print("=================================================================\n")
     
     print("[INFO] Saved model in '{}' direction!".format(self.path_save))
     self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
+if __name__ == "__main__":
+  # parser = ArgumentParser()
+  # parser.add_argument("--embedding-size", default=64, type=int)
+  # parser.add_argument("--hidden-units", default=256, type=int)
+  # parser.add_argument("--learning-rate", default=0.005, type=float)
+  # parser.add_argument("--test-split-size", default=0.1, type=float)
+  # parser.add_argument("--epochs", default=5, type=int)
+  # parser.add_argument("--batch-size", default=128, type=int)
+  # parser.add_argument("--bleu", default=False, type=bool)
+  # parser.add_argument("--debug", default=False, type=bool)
+  # args = parser.parse_args()
 
-Seq2Seq().training()
+  # print(f'Training Sequences To Sequences model with hyper-params:')
+  # print('------------------------------------')
+  # for k, v in vars(args).items():
+  #     print(f"|  +) {k} = {v}")
+  # print('====================================')
+
+
+
+
+  Seq2Seq(epochs=5).training()
+  # pass
