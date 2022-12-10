@@ -8,7 +8,7 @@ class Encode(tf.keras.Model):
         :param vocab_size: Số lượng từ của bộ từ vựng đầu vào
         :param embedding_size: Chiều của vector embedding
         :param hidden_units: Chiều của lớp ẩn
-    """
+    """ 
     super(Encode, self).__init__(**kwargs)
 
     self.hidden_units = hidden_units

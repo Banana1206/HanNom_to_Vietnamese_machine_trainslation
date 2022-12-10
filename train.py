@@ -161,25 +161,6 @@ class Seq2Seq:
     self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
 if __name__ == "__main__":
-  # parser = ArgumentParser()
-  # parser.add_argument("--embedding-size", default=64, type=int)
-  # parser.add_argument("--hidden-units", default=256, type=int)
-  # parser.add_argument("--learning-rate", default=0.005, type=float)
-  # parser.add_argument("--test-split-size", default=0.1, type=float)
-  # parser.add_argument("--epochs", default=5, type=int)
-  # parser.add_argument("--batch-size", default=128, type=int)
-  # parser.add_argument("--bleu", default=False, type=bool)
-  # parser.add_argument("--debug", default=False, type=bool)
-  # args = parser.parse_args()
 
-  # print(f'Training Sequences To Sequences model with hyper-params:')
-  # print('------------------------------------')
-  # for k, v in vars(args).items():
-  #     print(f"|  +) {k} = {v}")
-  # print('====================================')
-
-
-
-
-  Seq2Seq(epochs=5).training()
+  Seq2Seq().training()
   # pass
