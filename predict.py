@@ -98,3 +98,4 @@ if __name__ == "__main__":
         define.translate_enroll(i, lab)
     # print('==========nhan===========')
     # print(df['Viet'][:4])
+    print('End main')

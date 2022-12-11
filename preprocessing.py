@@ -122,5 +122,10 @@ class DatasetLoader:
 
         return sentences_1, sentences_2
   
-# inp_vector, tar_vector ,tokenize_inp, tokenize_tar = DatasetLoader(url=url).build_dataset()
-# print(inp_vector) 
+inp_vector, tar_vector ,tokenize_inp, tokenize_tar = DatasetLoader(url=url).build_dataset()
+print(type(tokenize_inp))
+
+#target_data = tar_vector
+#source_data=inp_vector
+#target_tokenizer = tokenize_tar
+#source_tokenizer = tokenize_inp
