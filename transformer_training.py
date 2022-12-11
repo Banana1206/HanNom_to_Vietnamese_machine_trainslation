@@ -25,7 +25,6 @@ d_v = 16 # 64 in the original paper
 n_heads = 4 # 8 in the original paper
 n_encoder_layers = 2 # 6 in the original paper
 n_decoder_layers = 2 # 6 in the original paper
-
 max_token_length = 20 # 512 in the original paper
 
 class SingleHeadAttention(Layer):
@@ -282,3 +281,8 @@ def translate(model, source_sentence, target_sentence_start=[['<sos>']]):
 # print("Source sentence: ", source_sentences[10])
 # print("Target sentence: ", target_sentences[10])
 # print("Predicted sentence: ", ' '.join(translate(transformer, source_sentences[10].split(' '))))
+
+
+print("Source sentence: ", '壬戌元年')
+print("Target sentence: ", 'Nhâm Tuất nguyên niên')
+print("Predicted sentence: ", ' '.join(translate(transformer, '壬戌元年'.split(' '))))
