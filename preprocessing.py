@@ -96,7 +96,7 @@ class DatasetLoader:
 
     # pad documents to a max length of 20 word
     # Các đầu vào có thể khác nhau nhưng mà input đầu vào cần phải giống nhau => pad_sequences
-    max_length = 20
+    max_length = 30
     inp_vector = pad_sequences(inp_vector, maxlen=max_length, padding='post')
     tar_vector = pad_sequences(tar_vector, maxlen=max_length, padding='post')
     return inp_vector, tar_vector ,tokenize_inp, tokenize_tar
@@ -115,10 +115,10 @@ class DatasetLoader:
         for sen_1, sen_2 in zip(nom_raw, viet_raw):
             sen_1 = add_space_nom(sen_1)
             sen_2 = remove_punctuation_viet(sen_2)
-            if self.min_length <= len(sen_1.split(" ")) <= self.max_length \
-                    and self.min_length <= len(sen_2.split()) <= self.max_length:
-              sentences_1.append(sen_1)
-              sentences_2.append(sen_2)
+            # if self.min_length <= len(sen_1.split(" ")) <= self.max_length \
+            #         and self.min_length <= len(sen_2.split()) <= self.max_length:
+            sentences_1.append(sen_1)
+            sentences_2.append(sen_2)
 
         return sentences_1, sentences_2
   
