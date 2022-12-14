@@ -238,10 +238,10 @@ def train_step(source_seq, target_seq, target_labels):
   return loss
 
 def translate(model, source_sentence, target_sentence_start=[['<sos>']]):
-  # if np.ndim(source_sentence) == 1: # Create a batch of 1 the input is a sentence
-  #     source_sentence = [source_sentence]
-  # if np.ndim(target_sentence_start) == 1:
-  #     target_sentence_start = [target_sentence_start]
+  if np.ndim(source_sentence) == 1: # Create a batch of 1 the input is a sentence
+      source_sentence = [source_sentence]
+  if np.ndim(target_sentence_start) == 1:
+      target_sentence_start = [target_sentence_start]
     # Tokenizing and padding
   source_seq = tokenize_inp.texts_to_sequences(source_sentence)
   source_seq = tf.keras.preprocessing.sequence.pad_sequences(source_seq, padding='post', maxlen=30)

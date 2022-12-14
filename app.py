@@ -1,3 +1,4 @@
+from flask import Flask, redirect, url_for, render_template, request
 import numpy as np
 import unicodedata, re
 import time, os
@@ -8,9 +9,7 @@ from Transformer import *
 from tensorflow.keras import Model
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense, Lambda, Layer, Embedding, LayerNormalization
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-checkpoint_path = "saved_models/cp-{epoch:04d}.ckpt"
-checkpoint_dir = os.path.dirname(checkpoint_path)
+from nhap import checkpoint_path, checkpoint_dir
 
 def translate(model, source_sentence, target_sentence_start=[['<sos>']]):
     if np.ndim(source_sentence) == 1: # Create a batch of 1 the input is a sentence
@@ -29,19 +28,23 @@ def translate(model, source_sentence, target_sentence_start=[['<sos>']]):
         predict_seq = tf.concat([predict_seq, predict_label], axis=-1) # Updating the prediction sequence
         predict_sentence.append(tokenize_tar.index_word[predict_label[0][0].numpy()])
     return predict_sentence[1:-1]
-# latest = tf.train.latest_checkpoint(checkpoint_dir)
-# model=Transformer()
-# print(latest)
-# model.load_weights(latest).expect_partial()
-# # source = '大 越 史 記 外 紀 全 書 卷 之'
-# data = pd.read_csv('data/NomNaNMT.csv')
-# nom_data = data['Nom'].tolist()
-# nom_data = nom_data[:25]
-# viet_data = data['Viet'].tolist()
-# viet_data = viet_data[:25]
-# for nom,viet in zip(nom_data, viet_data):
-#     print("Source sentence: ", nom)
-#     print("Target sentence: ", viet)
-#     print("Predicted sentence: ", ' '.join(translate(model,' '.join(list(nom)).split(' '))))
 
+app = Flask(__name__)
 
+@app.route("/")
+def hello_world():
+    return render_template('base.html')
+@app.route("/translator",  methods=['GET', 'POST'])
+def translator():
+    latest = tf.train.latest_checkpoint(checkpoint_dir)
+    model=Transformer()
+    print(latest)
+    model.load_weights(latest).expect_partial()
+    if request.method == "POST":
+        nom = request.form['nom']
+        print(' '.join(translate(model,' '.join(list(nom)).split(' '))))
+        dich = ' '.join(translate(model,' '.join(list(nom)).split(' ')))
+    return render_template('translate.html', dich=dich, nom=nom)
+
+if __name__ == "__main__":
+    app.run(debug=True)
