@@ -1,7 +1,2 @@
-<<<<<<< HEAD
-model_checkpoint_path: "cp-0061.ckpt"
-all_model_checkpoint_paths: "cp-0061.ckpt"
-=======
-model_checkpoint_path: "Seq2Seq_hanmon_to_VN-16"
-all_model_checkpoint_paths: "Seq2Seq_hanmon_to_VN-16"
->>>>>>> 59557e53a9e11d9c8e6f5329c641ad5d400a036f
+model_checkpoint_path: "cp-0019.ckpt"
+all_model_checkpoint_paths: "cp-0019.ckpt"

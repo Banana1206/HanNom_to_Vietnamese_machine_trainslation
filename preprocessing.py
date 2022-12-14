@@ -23,6 +23,7 @@ def remove_punctuation_viet(sen):
     sen = re.sub("\[|\]|\.|,|'|:","", sen)
     sen = re.sub("\s+", " ", sen)
     sen = " ".join([s for s in sen.split() if s not in list(string.punctuation)])
+    # print(sen)
     return "<sos> " + sen + " <eos>"
 
 def add_space_nom(sen):
@@ -105,14 +106,13 @@ class DatasetLoader:
     """
     nom_raw, viet_raw = self.load_data()
     inp_lang, tar_lang = self.preprocessing_sentence(nom_raw, viet_raw)
-    print(inp_lang, tar_lang)
     # Build Tokenizer
     tokenize_inp = Tokenizer(filters='!"#$%&()*+,-./:;=?@[\\]^_`{|}~\t\n')
     tokenize_tar = Tokenizer(filters='!"#$%&()*+,-./:;=?@[\\]^_`{|}~\t\n')
-
     # Fit text
     tokenize_inp.fit_on_texts(inp_lang)
     tokenize_tar.fit_on_texts(tar_lang)
+    print(tokenize_inp, tokenize_tar)
 
     # Get tensor
     inp_vector = tokenize_inp.texts_to_sequences(inp_lang)

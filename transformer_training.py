@@ -21,12 +21,12 @@ dataset = tf.data.Dataset.from_tensor_slices((inp_vector, tar_vector, target_lab
 # For Keras model.fit()
 dataset_2 = tf.data.Dataset.from_tensor_slices((inp_vector, tar_vector, target_labels))
 
-d_model = 64 # 512 in the original paper
-d_k = 16 # 64 in the original paper
-d_v = 16 # 64 in the original paper
-n_heads = 4 # 8 in the original paper
-n_encoder_layers = 2 # 6 in the original paper
-n_decoder_layers = 2 # 6 in the original paper
+d_model = 512 # 512 in the original paper
+d_k = 64 # 64 in the original paper
+d_v = 64 # 64 in the original paper
+n_heads = 8 # 8 in the original paper
+n_encoder_layers = 6 # 6 in the original paper
+n_decoder_layers = 6 # 6 in the original paper
 max_token_length = 20 # 512 in the original paper
 
 # Testing if the dimension matches!
@@ -61,6 +61,7 @@ batch_size = 32
 
 transformer_2 = Transformer() # Instantiating a new transformer model
 src_seqs, tgt_seqs, tgt_labels = zip(*dataset_2)
+print(tgt_seqs)
 train = [tf.cast(src_seqs, dtype=tf.float32), tf.cast(tgt_seqs, dtype=tf.float32)] # Cast the tuples to tensors
 print('TRAIN \n',train)
 transformer_2.compile(optimizer='adam',

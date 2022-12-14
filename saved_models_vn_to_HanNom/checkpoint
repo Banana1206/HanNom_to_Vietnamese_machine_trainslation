@@ -1,0 +1,2 @@
+model_checkpoint_path: "Seq2Seq_VN_to_Hannom-8"
+all_model_checkpoint_paths: "Seq2Seq_VN_to_Hannom-8"
