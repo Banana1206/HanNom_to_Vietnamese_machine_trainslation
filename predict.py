@@ -1,176 +1,47 @@
-import json
-import os
+import numpy as np
+import unicodedata, re
+import time, os
+from preprocessing import DatasetLoader
 import tensorflow as tf
-from argparse import ArgumentParser
-from preprocessing import remove_punctuation_viet
-from metric import CustomSchedule
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from Encoder_Attention_decoder import Encode, Attention, Decoder
-from preprocessing import DatasetLoader, add_space_nom, remove_punctuation_viet
 import pandas as pd
+from Transformer import *
+from tensorflow.keras import Model
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import Dense, Lambda, Layer, Embedding, LayerNormalization
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+checkpoint_path = "saved_models/cp-{epoch:04d}.ckpt"
+checkpoint_dir = os.path.dirname(checkpoint_path)
 
-class PredictionSentence_HanNom_to_Viet:
-    def __init__(self,
-                 embedding_size=64,
-                 hidden_units=256,
-                 max_sentence=30,
-                 learning_rate=0.005):
-
-        home = os.getcwd()
-        self.max_sentence = max_sentence
-        # self.save_dict = home + "/saved_models/{}_vocab.json"
-        self.url = 'data/NomNaNMT.csv'
-
-        self.inp_tensor, self.tar_tensor, self.inp_builder, self.tar_builder = DatasetLoader(url=self.url).build_dataset()
-        self.values = list(self.tar_builder.index_word.values())
-        self.keys = list(self.tar_builder.index_word.keys())
-
-        # Initialize Seq2Seq model
-        input_vocab_size = len(self.inp_builder.word_index) + 1
-        target_vocab_size = len(self.tar_builder.word_index) + 1
-
-        # input_vocab_size = 3874
-        # target_vocab_size = 3874
-
-        # Initialize encoder
-        self.encoder = Encode(input_vocab_size,
-                              embedding_size,
-                              hidden_units)
-
-        # Initialize decoder
-        self.decoder = Decoder(target_vocab_size,
-                                  embedding_size,
-                                  hidden_units)
-        
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-        # Initialize translation
-        self.path_save = home + "/saved_models"
-        self.checkpoint_prefix = os.path.join(self.path_save, "Seq2Seq_hanmon_to_VN")
-        self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
-                                              encoder=self.encoder,
-                                              decoder=self.decoder)
-        self.checkpoint.restore(tf.train.latest_checkpoint(self.path_save)).expect_partial()
-
-    def __preprocess_input_text__(self, text):
-        inp_lang = add_space_nom(text)
-        vector = [[self.inp_builder.word_index[w] for w in inp_lang.split() if w in list(self.inp_builder.word_index.keys())]]
-        sentence = pad_sequences(vector,
-                                 maxlen=self.max_sentence,
-                                 padding="post",
-                                 truncating="post")
-        # print(sentence)
-        return sentence
-
-    def translate_enroll(self, input_text, label):
-        vector = self.__preprocess_input_text__(input_text)
-        # Encoder
-        encode_outs, last_state = self.encoder(vector)
-        # Process decoder input
-        input_decode = tf.constant([self.tar_builder.word_index['<sos>']])
-        pred_sentence = ""
-        for _ in range(self.max_sentence):
-            output, last_state = self.decoder(input_decode, encode_outs, last_state)
-            pred_id = tf.argmax(output, axis=1).numpy()
-            # print('output: ',output)
-            # print('pred_id: ',pred_id)
-            # print('pred_id type : ',type(pred_id))
-            input_decode = pred_id
-            word = self.values[pred_id[0]]
-            # print(' word : ', word)
-            if word not in ["<sos>", "<eos>"]:
-                pred_sentence += " " + word
-            if word in ["<eos>"]:
-                break
-        print("-----------------------------------------------------------------")
-        print("Input     : ", input_text)
-        print("Label     : ", label)
-        print("Translate :", pred_sentence)
-        print("-----------------------------------------------------------------")
-        
-class PredictionSentence_Viet_to_HanNom:
-    def __init__(self,
-                 embedding_size=64,
-                 hidden_units=256,
-                 max_sentence=30,
-                 learning_rate=0.005):
-
-        home = os.getcwd()
-        self.max_sentence = max_sentence
-        # self.save_dict = home + "/saved_models/{}_vocab.json"
-        self.url = 'data/train_dev.csv'
-
-        self.tar_tensor, self.inp_tensor, self.tar_builder, self.inp_builder = DatasetLoader(url=self.url).build_dataset()
-        self.values = list(self.tar_builder.index_word.values())
-        self.keys = list(self.tar_builder.index_word.keys())
-
-        # Initialize Seq2Seq model
-        input_vocab_size = len(self.inp_builder.word_index) + 1
-        target_vocab_size = len(self.tar_builder.word_index) + 1
-
-        # input_vocab_size = 3874
-        # target_vocab_size = 3874
-
-        # Initialize encoder
-        self.encoder = Encode(input_vocab_size,
-                              embedding_size,
-                              hidden_units)
-
-        # Initialize decoder
-        self.decoder = Decoder(target_vocab_size,
-                                  embedding_size,
-                                  hidden_units)
-        
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-        # Initialize translation
-        self.path_save = home + "/saved_models_vn_to_HanNom"
-        self.checkpoint_prefix = os.path.join(self.path_save, "Seq2Seq_VN_to_Hannom")
-        self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
-                                              encoder=self.encoder,
-                                              decoder=self.decoder)
-        self.checkpoint.restore(tf.train.latest_checkpoint(self.path_save)).expect_partial()
-
-    def __preprocess_input_text__(self, text):
-        inp_lang = remove_punctuation_viet(text)
-        vector = [[self.inp_builder.word_index[w] for w in inp_lang.split() if w in list(self.inp_builder.word_index.keys())]]
-        sentence = pad_sequences(vector,
-                                 maxlen=self.max_sentence,
-                                 padding="post",
-                                 truncating="post")
-        # print(sentence)
-        return sentence
-
-    def translate_enroll(self, input_text, label):
-        vector = self.__preprocess_input_text__(input_text)
-        # Encoder
-        encode_outs, last_state = self.encoder(vector)
-        # Process decoder input
-        input_decode = tf.constant([self.tar_builder.word_index['<sos>']])
-        pred_sentence = ""
-        for _ in range(self.max_sentence):
-            output, last_state = self.decoder(input_decode, encode_outs, last_state)
-            pred_id = tf.argmax(output, axis=1).numpy()
-            # print('output: ',output)
-            # print('pred_id: ',pred_id)
-            # print('pred_id type : ',type(pred_id))
-            input_decode = pred_id
-            word = self.values[pred_id[0]]
-            # print(' word : ', word)
-            if word not in ["<sos>", "<eos>"]:
-                pred_sentence += " " + word
-            if word in ["<eos>"]:
-                break
-        print("-----------------------------------------------------------------")
-        print("Input     : ", input_text)
-        print("Label     : ", label)
-        print("Translate :", pred_sentence)
-        print("-----------------------------------------------------------------")
-
-if __name__ == "__main__":
+def translate(model, source_sentence, target_sentence_start=[['<sos>']]):
+    if np.ndim(source_sentence) == 1: # Create a batch of 1 the input is a sentence
+        source_sentence = [source_sentence]
+    if np.ndim(target_sentence_start) == 1:
+        target_sentence_start = [target_sentence_start]
+    # Tokenizing and padding
+    source_seq = tokenize_inp.texts_to_sequences(source_sentence)
+    source_seq = tf.keras.preprocessing.sequence.pad_sequences(source_seq, padding='post', maxlen=30)
+    predict_seq = tokenize_tar.texts_to_sequences(target_sentence_start)
     
-    define =  PredictionSentence_Viet_to_HanNom()
-    df = pd.read_csv('data/test.csv')
-    inp =  df[['Nom','Viet']].sample(10)
-    for i, lab in zip(inp['Nom'][:4],inp['Viet'][:4]) :
-        define.translate_enroll(lab,i)
-    # print('==========nhan===========')
-    # print(inp['Viet'][:4])
+    predict_sentence = list(target_sentence_start[0]) # Deep copy here to prevent updates on target_sentence_start
+    while predict_sentence[-1] != '<eos>' and len(predict_seq) < max_token_length:
+        predict_output = model([np.array(source_seq), np.array(predict_seq)], training=None)
+        predict_label = tf.argmax(predict_output, axis=-1) # Pick the label with highest softmax score
+        predict_seq = tf.concat([predict_seq, predict_label], axis=-1) # Updating the prediction sequence
+        predict_sentence.append(tokenize_tar.index_word[predict_label[0][0].numpy()])
+    return predict_sentence[1:-1]
+# latest = tf.train.latest_checkpoint(checkpoint_dir)
+# model=Transformer()
+# print(latest)
+# model.load_weights(latest).expect_partial()
+# # source = '大 越 史 記 外 紀 全 書 卷 之'
+# data = pd.read_csv('data/NomNaNMT.csv')
+# nom_data = data['Nom'].tolist()
+# nom_data = nom_data[:25]
+# viet_data = data['Viet'].tolist()
+# viet_data = viet_data[:25]
+# for nom,viet in zip(nom_data, viet_data):
+#     print("Source sentence: ", nom)
+#     print("Target sentence: ", viet)
+#     print("Predicted sentence: ", ' '.join(translate(model,' '.join(list(nom)).split(' '))))
+
+

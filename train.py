@@ -1,275 +1,107 @@
-
-import os
-import tensorflow as tf
-from tqdm import tqdm
-from preprocessing import DatasetLoader
-from argparse import ArgumentParser
-from evaluation import evaluation, evaluation_with_attention
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from Encoder_Attention_decoder import Encode, Attention, Decoder
-from metric import Bleu_score
-from sklearn.model_selection import train_test_split
 import numpy as np
-from argparse import ArgumentParser
+import unicodedata, re
+import time, os
+from preprocessing import DatasetLoader
+import tensorflow as tf
+from tensorflow.keras import Model
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import Dense, Lambda, Layer, Embedding, LayerNormalization
+from Transformer import *
+url = 'data/NomNaNMT.csv'
+inp_vector, tar_vector ,tokenize_inp, tokenize_tar = DatasetLoader(url=url).build_dataset()
+# source_sentences,target_sentences = DatasetLoader(url=url).preprocessing_sentence()
+target_labels = np.zeros(tar_vector.shape)
+target_labels[:,0:tar_vector.shape[1] -1] = tar_vector[:,1:]
+source_vocab_len = len(tokenize_inp.word_index) + 1
+target_vocab_len = len(tokenize_tar.word_index) + 1
+print("Size of source vocabulary: ", source_vocab_len)
+print("Size of target vocabulary: ", target_vocab_len)
+
+dataset = tf.data.Dataset.from_tensor_slices((inp_vector, tar_vector, target_labels)).batch(5)
+# For Keras model.fit()
+dataset_2 = tf.data.Dataset.from_tensor_slices((inp_vector, tar_vector, target_labels))
+
+d_model = 512 # 512 in the original paper
+d_k = 64 # 64 in the original paper
+d_v = 64 # 64 in the original paper
+n_heads = 8 # 8 in the original paper
+n_encoder_layers = 6 # 6 in the original paper
+n_decoder_layers = 6 # 6 in the original paper
+max_token_length = 20 # 512 in the original paper
+
+# Testing if the dimension matches!
+# x = tf.ones((3, 26, d_model))
+# x1 = tf.ones((3, 18, d_model))
+# single_att = SingleHeadAttention(masked=None)
+# multi_att = MultiHeadAttention()
+# encoder = TransformerEncoder()
+# decoder = TransformerDecoder()
+# y = single_att((x, x, x)) # Self attention
+# y1 = multi_att((x1, x, x)) # Encoder-decoder attention
+# print(tf.shape(y))
+# print(tf.shape(y1))
+# y2 = encoder(x)
+# y3 = decoder(x, y2)
+
+# print(tf.shape(y2))
+# print(tf.shape(y3))
+#print(layer.trainable_weights)
 
 
-# url = 'data/NomNaNMT.csv'
-url = 'data/train_dev.csv'
-
-def MaskedSoftmaxCELoss(label, pred):
-    """
-    :param label: shape (batch_size, max_length, vocab_size)
-    :param pred: shape (batch_size, max_length)
-    :return: weighted_loss: shape (batch_size, max_length)
-    """
-    weights_mask = 1 - np.equal(label, 0)
-    unweighted_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(label, pred)
-    weighted_loss = tf.reduce_mean(unweighted_loss * weights_mask)
-    return weighted_loss
-
-class Seq2Seq_HanNom_Viet:
-  def __init__(self,
-               embedding_size=64,
-               hidden_units = 256,
-               learning_rate=0.005,
-               test_split_size=0.1,
-               epochs = 32,
-               batch_size = 128,
-               use_bleu=False,
-               debug=False
-               ):
-    self.embedding_size = embedding_size
-    self.hidden_units = hidden_units
-    self.test_split_size = test_split_size
-    self.BATCH_SIZE = batch_size
-    self.EPOCHS = epochs
-    self.debug = debug
-    self.use_bleu = use_bleu
-
-    # save model
-    home = os.getcwd()
-    self.path_save = home + "/saved_models"
-    if not os.path.exists(self.path_save):
-        os.mkdir(self.path_save)
-
-    # Load dataset
-    self.inp_tensor, self.tar_tensor, self.inp_builder, self.tar_builder = DatasetLoader(url=url).build_dataset()
-
-    # Initialize Seq2Seq model
-    self.input_vocab_size = len(self.inp_builder.word_index) + 1
-    self.target_vocab_size = len(self.tar_builder.word_index) + 1
-
-    # Initialize optimizer
-    # if use_lr_schedule:
-    #     learning_rate = CustomSchedule(self.hidden_units, warmup_steps=warmup_steps)
-    self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-
-    # Initialize encoder
-    self.encoder = Encode(self.input_vocab_size,
-                          embedding_size,
-                          hidden_units)
-    # Initialize decoder with attention
-    self.decoder = Decoder(self.target_vocab_size,
-                          embedding_size,
-                          hidden_units)
-    # Initialize translation
-    self.checkpoint_prefix = os.path.join(self.path_save, "Seq2Seq_hanmon_to_VN")
-
-    self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
-                                          encoder=self.encoder,
-                                          decoder=self.decoder)
-    # Initialize Bleu function
-    self.bleu = Bleu_score()
+# Demonstration on calling transformer model
+transformer = Transformer(dropout=.1)
+print(tf.shape(transformer([np.ones((5, 15)), np.ones((5, 12))], training=False)))
 
 
-  def train_step_with_attention(self, x, y):
-    loss = 0
-    with tf.GradientTape() as tape:
-        # Teaching force
-        dec_input = tf.constant([self.tar_builder.word_index['<sos>']] * self.BATCH_SIZE)
-        # Encoder
-        encoder_outs, last_state = self.encoder(x)
-        for i in range(1, y.shape[1]):
-            # Decoder
-            decode_out, last_state = self.decoder(dec_input, encoder_outs, last_state)
-            # Loss
-            loss += MaskedSoftmaxCELoss(y[:, i], decode_out)
-            # Decoder input
-            dec_input = y[:, i]
+# Specify loss, optimizer and training function
+checkpoint_path = "saved_models/cp-{epoch:04d}.ckpt"
+checkpoint_dir = os.path.dirname(checkpoint_path)
 
-    train_vars = self.encoder.trainable_variables + self.decoder.trainable_variables
-    grads = tape.gradient(loss, train_vars)
-    self.optimizer.apply_gradients(zip(grads, train_vars))
-    return loss
+batch_size = 32
 
-  def training(self):
-    # Add to tensor
-    train_x, test_x, train_y, test_y = train_test_split(self.inp_tensor, self.tar_tensor, test_size=self.test_split_size)
+transformer_2 = Transformer() # Instantiating a new transformer model
+src_seqs, tgt_seqs, tgt_labels = zip(*dataset_2)
+print(tgt_seqs)
+train = [tf.cast(src_seqs, dtype=tf.float32), tf.cast(tgt_seqs, dtype=tf.float32)] # Cast the tuples to tensors
+print('TRAIN \n',train)
+transformer_2.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+transformer_2.fit(train, tf.cast(tgt_labels, dtype=tf.float32), verbose=1, batch_size=5, epochs=200, callbacks=[tf.keras.callbacks.EarlyStopping(patience=4, monitor='loss'), 
+                                                                                                              tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, verbose=1, save_weights_only=True, save_freq=75*batch_size)])
 
-    train_ds = tf.data.Dataset.from_tensor_slices((train_x, train_y))
-    val_ds = tf.data.Dataset.from_tensor_slices((test_x, test_y))
+# print("Source sentence: ", source_sentences[10])
+# print("Target sentence: ", target_sentences[10])
+# print("Predicted sentence: ", ' '.join(translate(transformer, source_sentences[10].split(' '))))
 
-    N_BATCH = train_x.shape[0] // self.BATCH_SIZE
+# class ExportTranslator(tf.Module):
+#   def __init__(self, translator):
+#     self.translator = translator
 
-    tmp = 0
-    for epoch in range(self.EPOCHS):
-        total_loss = 0
-        print( "( {},{} )".format(epoch,self.EPOCHS))
-        for _, (x, y) in tqdm(enumerate(train_ds.batch(self.BATCH_SIZE).take(N_BATCH)), total=N_BATCH):
-          total_loss += self.train_step_with_attention(x, y)
-      
-        if self.use_bleu:
-          print("\n=================================================================")
-          
-          bleu_score = evaluation_with_attention(encoder=self.encoder,
-                                                  decoder=self.decoder,
-                                                  test_ds=val_ds,
-                                                  val_function=self.bleu,
-                                                  inp_builder=self.inp_builder,
-                                                  tar_builder=self.tar_builder,
-                                                  test_split_size=self.test_split_size,
-                                                  debug=self.debug)
-          print("-----------------------------------------------------------------")
-          print(f'Epoch {epoch + 1}/{self.EPOCHS} -- Loss: {total_loss} -- Bleu_score: {bleu_score}')
-          if bleu_score > tmp:
-              self.checkpoint.save(file_prefix=self.checkpoint_prefix)
-              print("[INFO] Saved model in '{}' direction!".format(self.path_save))
-              tmp = bleu_score
-          print("=================================================================\n")
-        else:
-          print("=================================================================")
-          print(f'Epoch {epoch + 1}/{self.EPOCHS} -- Loss: {total_loss}')
-          print("=================================================================\n")
-    
-    print("[INFO] Saved model in '{}' direction!".format(self.path_save))
-    self.checkpoint.save(file_prefix=self.checkpoint_prefix)
+#   @tf.function(input_signature=[tf.TensorSpec(shape=[], dtype=tf.string)])
+#   def __call__(self, sentence):
+#     (result,
+#      tokens,
+#      attention_weights) = self.translator(sentence, max_length=30)
 
-class Seq2Seq_Viet_Hanom:
-  def __init__(self,
-               embedding_size=64,
-               hidden_units = 256,
-               learning_rate=0.005,
-               test_split_size=0.1,
-               epochs = 32,
-               batch_size = 128,
-               use_bleu=False,
-               debug=False
-               ):
-    self.embedding_size = embedding_size
-    self.hidden_units = hidden_units
-    self.test_split_size = test_split_size
-    self.BATCH_SIZE = batch_size
-    self.EPOCHS = epochs
-    self.debug = debug
-    self.use_bleu = use_bleu
+    # return result
 
-    # save model
-    home = os.getcwd()
-    self.path_save = home + "/saved_models_vn_to_HanNom"
-    if not os.path.exists(self.path_save):
-        os.mkdir(self.path_save)
+# translator = ExportTranslator(transformer_2)
+# tf.saved_model.save(translator, export_dir='translator')
 
-    # Load dataset
-    self.tar_tensor, self.inp_tensor, self.tar_builder, self.inp_builder = DatasetLoader(url=url).build_dataset()
-
-    # Initialize Seq2Seq model
-    self.input_vocab_size = len(self.inp_builder.word_index) + 1
-    self.target_vocab_size = len(self.tar_builder.word_index) + 1
-
-    # Initialize optimizer
-    # if use_lr_schedule:
-    #     learning_rate = CustomSchedule(self.hidden_units, warmup_steps=warmup_steps)
-    self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-
-    # Initialize encoder
-    self.encoder = Encode(self.input_vocab_size,
-                          embedding_size,
-                          hidden_units)
-    # Initialize decoder with attention
-    self.decoder = Decoder(self.target_vocab_size,
-                          embedding_size,
-                          hidden_units)
-    # Initialize translation
-    self.checkpoint_prefix = os.path.join(self.path_save, "Seq2Seq_VN_to_Hannom")
-
-    self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
-                                          encoder=self.encoder,
-                                          decoder=self.decoder)
-    # Initialize Bleu function
-    self.bleu = Bleu_score()
+# Include the epoch in the file name (uses `str.format`)
 
 
-  def train_step_with_attention(self, x, y):
-    loss = 0
-    with tf.GradientTape() as tape:
-        # Teaching force
-        dec_input = tf.constant([self.tar_builder.word_index['<sos>']] * self.BATCH_SIZE)
-        # Encoder
-        encoder_outs, last_state = self.encoder(x)
-        for i in range(1, y.shape[1]):
-            # Decoder
-            decode_out, last_state = self.decoder(dec_input, encoder_outs, last_state)
-            # Loss
-            loss += MaskedSoftmaxCELoss(y[:, i], decode_out)
-            # Decoder input
-            dec_input = y[:, i]
+# Create a callback that saves the model's weights every 5 epochs
+# Create a new model instance
+# model = transformer_2
 
-    train_vars = self.encoder.trainable_variables + self.decoder.trainable_variables
-    grads = tape.gradient(loss, train_vars)
-    self.optimizer.apply_gradients(zip(grads, train_vars))
-    return loss
+# Save the weights using the `checkpoint_path` format
+# transformer_2.save_weights(checkpoint_path.format(epoch=0))
+# latest = tf.train.latest_checkpoint(checkpoint_dir)
 
-  def training(self):
-    # Add to tensor
-    train_x, test_x, train_y, test_y = train_test_split(self.inp_tensor, self.tar_tensor, test_size=self.test_split_size)
-
-    train_ds = tf.data.Dataset.from_tensor_slices((train_x, train_y))
-    val_ds = tf.data.Dataset.from_tensor_slices((test_x, test_y))
-
-    N_BATCH = train_x.shape[0] // self.BATCH_SIZE
-
-    tmp = 0
-    for epoch in range(self.EPOCHS):
-        total_loss = 0
-        print( "( {},{} )".format(epoch,self.EPOCHS))
-        for _, (x, y) in tqdm(enumerate(train_ds.batch(self.BATCH_SIZE).take(N_BATCH)), total=N_BATCH):
-          total_loss += self.train_step_with_attention(x, y)
-      
-        if self.use_bleu:
-          print("\n=================================================================")
-          
-          bleu_score = evaluation_with_attention(encoder=self.encoder,
-                                                  decoder=self.decoder,
-                                                  test_ds=val_ds,
-                                                  val_function=self.bleu,
-                                                  inp_builder=self.inp_builder,
-                                                  tar_builder=self.tar_builder,
-                                                  test_split_size=self.test_split_size,
-                                                  debug=self.debug)
-          print("-----------------------------------------------------------------")
-          print(f'Epoch {epoch + 1}/{self.EPOCHS} -- Loss: {total_loss} -- Bleu_score: {bleu_score}')
-          if bleu_score > tmp:
-              self.checkpoint.save(file_prefix=self.checkpoint_prefix)
-              print("[INFO] Saved model in '{}' direction!".format(self.path_save))
-              tmp = bleu_score
-          print("=================================================================\n")
-        else:
-          print("=================================================================")
-          print(f'Epoch {epoch + 1}/{self.EPOCHS} -- Loss: {total_loss}')
-          print("=================================================================\n")
-    
-    print("[INFO] Saved model in '{}' direction!".format(self.path_save))
-    self.checkpoint.save(file_prefix=self.checkpoint_prefix)
-
-if __name__ == "__main__":
-
-  Seq2Seq_Viet_Hanom(
-               embedding_size=64,
-               hidden_units = 256,
-               learning_rate=0.002,
-               test_split_size=0.1,
-               epochs = 10,
-               batch_size = 256,
-               use_bleu=True,
-  ).training()
-#   # pass
+# model=Transformer()
+# model.load_weights(latest)
+# print("Source sentence: ", '壬戌元年')
+# print("Target sentence: ", 'Nhâm Tuất nguyên niên')
+# print("Predicted sentence: ", ' '.join(translate(model, '壬戌元年'.split(' '))))
