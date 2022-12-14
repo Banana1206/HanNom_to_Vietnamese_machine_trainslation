@@ -26,7 +26,7 @@ d_v = 16 # 64 in the original paper
 n_heads = 4 # 8 in the original paper
 n_encoder_layers = 2 # 6 in the original paper
 n_decoder_layers = 2 # 6 in the original paper
-max_token_length = 20 # 512 in the original paper
+max_token_length = 30 # 512 in the original paper
 
 class SingleHeadAttention(Layer):
   def __init__(self, input_shape=(3, -1, d_model), dropout=.0, masked=None):
