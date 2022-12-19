@@ -112,7 +112,6 @@ class DatasetLoader:
     # Fit text
     tokenize_inp.fit_on_texts(inp_lang)
     tokenize_tar.fit_on_texts(tar_lang)
-    print(tokenize_inp, tokenize_tar)
 
     # Get tensor
     inp_vector = tokenize_inp.texts_to_sequences(inp_lang)
