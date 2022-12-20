@@ -9,8 +9,8 @@ from Transformer import *
 from tensorflow.keras import Model
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense, Lambda, Layer, Embedding, LayerNormalization
-from nhap import checkpoint_path, checkpoint_dir
-
+checkpoint_path = "saved_models/cp-{epoch:04d}.ckpt"
+checkpoint_dir = os.path.dirname(checkpoint_path)
 def translate(model, source_sentence, target_sentence_start=[['<sos>']]):
     if np.ndim(source_sentence) == 1: # Create a batch of 1 the input is a sentence
         source_sentence = [source_sentence]
@@ -31,7 +31,7 @@ def translate(model, source_sentence, target_sentence_start=[['<sos>']]):
 
 app = Flask(__name__)
 
-@app.route("/")
+@app.route("/", methods=['GET', 'POST'])
 def hello_world():
     return render_template('base.html')
 @app.route("/translator",  methods=['GET', 'POST'])
@@ -41,6 +41,8 @@ def translator():
     print(latest)
     model.load_weights(latest).expect_partial()
     if request.method == "POST":
+        # if request.form['routing'] == "Come back":
+        #     return redirect('/')
         nom = request.form['nom']
         print(' '.join(translate(model,' '.join(list(nom)).split(' '))))
         dich = ' '.join(translate(model,' '.join(list(nom)).split(' ')))

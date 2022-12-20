@@ -250,7 +250,6 @@ def translate(model, source_sentence, target_sentence_start=[['<sos>']]):
   predict_sentence = list(target_sentence_start[0]) # Deep copy here to prevent updates on target_sentence_start
   while predict_sentence[-1] != '<eos>' and len(predict_seq) < max_token_length:
       predict_output = model([np.array(source_seq), np.array(predict_seq)], training=None)
-      print(predict_output, source_seq, predict_seq)
       predict_label = tf.argmax(predict_output, axis=-1) # Pick the label with highest softmax score
       predict_seq = tf.concat([predict_seq, predict_label], axis=-1) # Updating the prediction sequence
       predict_sentence.append(tokenize_tar.index_word[predict_label[0][0].numpy()])
