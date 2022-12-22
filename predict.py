@@ -81,7 +81,7 @@ class PredictionSentence_HanNom_to_Viet:
             # print(' word : ', word)
             if word not in ["<sos>", "<eos>"]:
                 pred_sentence += " " + word
-            if word in ["<eos>"]:
+            if word in ["<eos>"]:  
                 break
         print("-----------------------------------------------------------------")
         print("Input     : ", input_text)
@@ -172,7 +172,7 @@ class PredictionSentence_Viet_to_HanNom:
 if __name__ == "__main__":
     
     define =  PredictionSentence_HanNom_to_Viet()
-    df = pd.read_csv('data/train_dev.csv')
+    df = pd.read_csv('data/test.csv')
     inp =  df[['Nom','Viet']].sample(10)
     for i, lab in zip(inp['Nom'][:4],inp['Viet'][:4]) :
         define.translate_enroll(i,lab)

@@ -13,8 +13,8 @@ import numpy as np
 from argparse import ArgumentParser
 
 
-# url = 'data/NomNaNMT.csv'
-url = 'data/train_dev.csv'
+url_total = 'data/NomNaNMT.csv'
+url_train = 'data/train_dev.csv'
 
 def MaskedSoftmaxCELoss(label, pred):
     """
@@ -48,12 +48,13 @@ class Seq2Seq_HanNom_Viet:
 
     # save model
     home = os.getcwd()
-    self.path_save = home + "/saved_models_HanToViet2"
+    self.path_save = home + "/saved_models_HanToViet4"
     if not os.path.exists(self.path_save):
         os.mkdir(self.path_save)
 
     # Load dataset
-    self.inp_tensor, self.tar_tensor, self.inp_builder, self.tar_builder = DatasetLoader(url=url).build_dataset()
+    self.inp_tensor, self.tar_tensor, self.inp_builder, self.tar_builder = DatasetLoader(url=url_total).build_dataset()
+    self.inp_tensor_train, self.tar_tensor_train, self.inp_builder_train, self.tar_builder_train = DatasetLoader(url=url_train).build_dataset()
 
     # Initialize Seq2Seq model
     self.input_vocab_size = len(self.inp_builder.word_index) + 1
@@ -104,7 +105,7 @@ class Seq2Seq_HanNom_Viet:
 
   def training(self):
     # Add to tensor
-    train_x, test_x, train_y, test_y = train_test_split(self.inp_tensor, self.tar_tensor, test_size=self.test_split_size)
+    train_x, test_x, train_y, test_y = train_test_split(self.inp_tensor_train, self.tar_tensor_train, test_size=self.test_split_size)
 
     train_ds = tf.data.Dataset.from_tensor_slices((train_x, train_y))
     val_ds = tf.data.Dataset.from_tensor_slices((test_x, test_y))
@@ -153,7 +154,7 @@ class Seq2Seq_Viet_Hanom:
                epochs = 32,
                batch_size = 128,
                use_bleu=False,
-               debug=False
+               debug=True
                ):
     self.embedding_size = embedding_size
     self.hidden_units = hidden_units
@@ -266,7 +267,7 @@ if __name__ == "__main__":
   Seq2Seq_HanNom_Viet(
                embedding_size=64,
                hidden_units = 64,
-               learning_rate=0.002,
+               learning_rate=0.003,
                test_split_size=0.1,
                epochs = 100,
                batch_size = 128,

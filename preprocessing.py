@@ -141,8 +141,8 @@ class DatasetLoader:
 
         return sentences_1, sentences_2
     
-if __name__ == '__main__':
-    inp_vector, tar_vector ,tokenize_inp, tokenize_tar = DatasetLoader(url=url).build_dataset()
+# if __name__ == '__main__':
+    # inp_vector, tar_vector ,tokenize_inp, tokenize_tar = DatasetLoader(url=url).build_dataset()
 #     save_dict = os.getcwd() + "/data/{}_vocab3.json"
 #     f = open(save_dict.format("hannom"), "r", encoding="utf-8")
 #     a = json.load(f)
