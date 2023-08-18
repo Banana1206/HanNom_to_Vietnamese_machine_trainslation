@@ -1,0 +1,2 @@
+# HanNom_to_Vietnamese_machine_trainslation
+Machine Translation using Seq2Seq and Transformer Models
